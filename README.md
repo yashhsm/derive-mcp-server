@@ -182,8 +182,9 @@ The `skills/` directory contains Claude Code skills that extend this MCP server 
 
 | Skill | Status | Description |
 |-------|--------|-------------|
-| `intent-analyser` | Planned | Parses natural language trading intent into structured Derive orders — handles complex multi-leg strategies, validates sizing, and checks margin before execution. |
-| `payoff-diagram` | Planned | Generates interactive HTML payoff diagrams for options strategies — shows P&L curves, breakevens, greeks heatmaps, and scenario analysis. |
+| `payoff-diagram` | **Ready** | Interactive HTML payoff diagrams — P&L curves at multiple DTEs, what-if price slider, plain English strategy summary, beginner-friendly greek explanations, IV sensitivity, scenario analysis. Live Derive API refresh. |
+| `strategy-scanner` | **Ready** | Scans live options chains for trade opportunities. Analyzes IV skew, term structure, unusual activity, yield screens, and cheap lottery tickets. Presents ranked ideas in plain language with thesis and risk. |
+| `trade-intent-parser` | **Ready** | NL → executable orders. "Sell the 90/100 call spread" → validates instruments, checks liquidity, simulates margin, shows preview with cost/greeks/breakevens, executes on confirmation. Auto-generates payoff diagram after fills. |
 
 Skills are designed to be installed into `~/.claude/skills/` and work alongside the MCP server.
 
@@ -211,8 +212,9 @@ derive-mcp-server/
 │           ├── mmp/                # Market maker protection
 │           └── session/            # Session key management
 ├── skills/                         # Claude Code skills (higher-level capabilities)
-│   ├── intent-analyser/            # NL → structured trade orders
-│   └── payoff-diagram/             # Interactive HTML payoff charts
+│   ├── payoff-diagram/             # Interactive HTML payoff charts
+│   ├── strategy-scanner/           # Options chain opportunity scanner
+│   └── trade-intent-parser/        # NL → validated, executable orders
 ├── dist/                           # Compiled output (gitignored)
 ├── package.json
 ├── tsconfig.json

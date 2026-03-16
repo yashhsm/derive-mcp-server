@@ -180,6 +180,13 @@
     font-family: var(--mono);
     margin-top: 4px;
   }
+  .greek-item .greek-tip {
+    font-size: 11px;
+    color: var(--text-soft);
+    margin-top: 6px;
+    line-height: 1.4;
+    font-style: italic;
+  }
 
   /* Legs Table */
   table {
@@ -714,6 +721,17 @@ function drawChart() {
   ctx.textAlign = 'center';
   ctx.fillText('Spot $' + D.spotPrice.toFixed(1), spotX, pad.top - 6);
 
+  // Axis labels
+  ctx.fillStyle = '#a3a3a3';
+  ctx.font = '600 13px Inter, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText(D.currency + ' Price →', pad.left + cw / 2, H - 4);
+  ctx.save();
+  ctx.translate(14, pad.top + ch / 2);
+  ctx.rotate(-Math.PI / 2);
+  ctx.fillText('Profit / Loss ($) →', 0, 0);
+  ctx.restore();
+
   // Strike markers
   for (const leg of D.legs) {
     const sx = toX(leg.strike);
@@ -952,17 +970,37 @@ function renderGreeks() {
     agg.theta += leg.theta * leg.amount;
   }
 
+  // Plain English tips for each greek
+  const deltaTip = Math.abs(agg.delta) < 0.1
+    ? 'Near zero — your position doesn\'t care which way the price moves'
+    : agg.delta > 0
+      ? `Bullish lean — you make ~$${Math.abs(agg.delta).toFixed(2)} per $1 ${D.currency} goes up`
+      : `Bearish lean — you make ~$${Math.abs(agg.delta).toFixed(2)} per $1 ${D.currency} goes down`;
+
+  const gammaTip = agg.gamma > 0
+    ? 'Long gamma — big moves in either direction help you'
+    : 'Short gamma — big moves hurt you, you want price to stay still';
+
+  const thetaTip = agg.theta < 0
+    ? `Time decay costs you ~$${Math.abs(agg.theta).toFixed(2)} per day`
+    : `Time decay earns you ~$${agg.theta.toFixed(2)} per day`;
+
+  const vegaTip = agg.vega > 0
+    ? 'You profit if volatility (IV) increases'
+    : 'You profit if volatility (IV) decreases';
+
   const greeks = [
-    { label: 'Delta', value: agg.delta.toFixed(3), color: Math.abs(agg.delta) < 0.1 ? 'var(--text-sub)' : agg.delta > 0 ? 'var(--success)' : 'var(--error)' },
-    { label: 'Gamma', value: agg.gamma.toFixed(4), color: 'var(--blue)' },
-    { label: 'Theta', value: '$' + agg.theta.toFixed(2) + '/d', color: agg.theta < 0 ? 'var(--error)' : 'var(--success)' },
-    { label: 'Vega', value: agg.vega.toFixed(3), color: 'var(--purple)' },
+    { label: 'Delta', value: agg.delta.toFixed(3), color: Math.abs(agg.delta) < 0.1 ? 'var(--text-sub)' : agg.delta > 0 ? 'var(--success)' : 'var(--error)', tip: deltaTip },
+    { label: 'Gamma', value: agg.gamma.toFixed(4), color: 'var(--blue)', tip: gammaTip },
+    { label: 'Theta', value: '$' + agg.theta.toFixed(2) + '/d', color: agg.theta < 0 ? 'var(--error)' : 'var(--success)', tip: thetaTip },
+    { label: 'Vega', value: agg.vega.toFixed(3), color: 'var(--purple)', tip: vegaTip },
   ];
 
   container.innerHTML = greeks.map(g => `
     <div class="greek-item">
       <div class="greek-label">${g.label}</div>
       <div class="greek-value" style="color:${g.color}">${g.value}</div>
+      <div class="greek-tip">${g.tip}</div>
     </div>
   `).join('');
 }
