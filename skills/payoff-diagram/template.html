@@ -1,0 +1,1122 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title id="page-title">Options Payoff</title>
+<style>
+  :root {
+    --bg-page: #0a0a0b;
+    --bg-weak: #141415;
+    --bg-soft: #1e1e20;
+    --bg-sub: #282829;
+    --text-strong: #fafafa;
+    --text-sub: #a3a3a3;
+    --text-soft: #737373;
+    --text-disabled: #525252;
+    --border-soft: #262628;
+    --border-sub: #363638;
+    --primary: #ec4899;
+    --primary-muted: rgba(236, 72, 153, 0.15);
+    --success: #22c55e;
+    --success-muted: rgba(34, 197, 94, 0.12);
+    --error: #ef4444;
+    --error-muted: rgba(239, 68, 68, 0.12);
+    --warning: #eab308;
+    --blue: #3b82f6;
+    --purple: #a855f7;
+    --radius: 12px;
+    --radius-sm: 8px;
+    --font: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+    --mono: 'JetBrains Mono', 'Fira Code', 'SF Mono', monospace;
+  }
+
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: var(--bg-page);
+    color: var(--text-strong);
+    font-family: var(--font);
+    font-size: 14px;
+    line-height: 1.5;
+    min-height: 100vh;
+  }
+
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 24px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+  }
+
+  /* Header */
+  .header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+  .header h1 {
+    font-size: 20px;
+    font-weight: 600;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .header h1 .currency {
+    color: var(--primary);
+  }
+  .header-meta {
+    display: flex;
+    gap: 16px;
+    color: var(--text-sub);
+    font-size: 13px;
+  }
+  .header-meta span { display: flex; align-items: center; gap: 4px; }
+
+  /* Cards */
+  .card {
+    background: var(--bg-weak);
+    border: 1px solid var(--border-soft);
+    border-radius: var(--radius);
+    overflow: hidden;
+  }
+  .card-header {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--border-soft);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .card-header h2 {
+    font-size: 14px;
+    font-weight: 600;
+  }
+  .card-body { padding: 20px; }
+
+  /* Chart */
+  .chart-container {
+    position: relative;
+    width: 100%;
+    height: 400px;
+    cursor: crosshair;
+  }
+  .chart-container canvas {
+    width: 100% !important;
+    height: 100% !important;
+  }
+
+  /* Tooltip */
+  .chart-tooltip {
+    display: none;
+    position: absolute;
+    background: var(--bg-sub);
+    border: 1px solid var(--border-sub);
+    border-radius: var(--radius-sm);
+    padding: 10px 14px;
+    font-size: 13px;
+    pointer-events: none;
+    z-index: 10;
+    white-space: nowrap;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.4);
+  }
+  .chart-tooltip .tt-price { color: var(--text-sub); font-size: 12px; }
+  .chart-tooltip .tt-pnl { font-size: 16px; font-weight: 600; font-family: var(--mono); }
+  .chart-tooltip .tt-pnl.profit { color: var(--success); }
+  .chart-tooltip .tt-pnl.loss { color: var(--error); }
+  .chart-tooltip .tt-pct { font-size: 12px; color: var(--text-soft); }
+
+  /* Key Levels */
+  .key-levels {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+  }
+  .level-card {
+    background: var(--bg-soft);
+    border-radius: var(--radius-sm);
+    padding: 14px 16px;
+  }
+  .level-card .label {
+    font-size: 12px;
+    color: var(--text-soft);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    margin-bottom: 4px;
+  }
+  .level-card .value {
+    font-size: 18px;
+    font-weight: 600;
+    font-family: var(--mono);
+  }
+  .level-card .value.profit { color: var(--success); }
+  .level-card .value.loss { color: var(--error); }
+  .level-card .sub { font-size: 12px; color: var(--text-sub); margin-top: 2px; }
+
+  /* Greeks Table */
+  .greeks-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(100px, 1fr));
+    gap: 12px;
+  }
+  .greek-item {
+    text-align: center;
+    padding: 12px;
+    background: var(--bg-soft);
+    border-radius: var(--radius-sm);
+  }
+  .greek-item .greek-label {
+    font-size: 11px;
+    color: var(--text-soft);
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+  }
+  .greek-item .greek-value {
+    font-size: 20px;
+    font-weight: 600;
+    font-family: var(--mono);
+    margin-top: 4px;
+  }
+
+  /* Legs Table */
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 13px;
+  }
+  th {
+    text-align: left;
+    padding: 10px 12px;
+    color: var(--text-soft);
+    font-weight: 500;
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    border-bottom: 1px solid var(--border-soft);
+  }
+  td {
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border-soft);
+    font-family: var(--mono);
+    font-size: 13px;
+  }
+  tr:last-child td { border-bottom: none; }
+  tr:hover td { background: var(--bg-soft); }
+  .tag {
+    display: inline-block;
+    padding: 2px 8px;
+    border-radius: 4px;
+    font-size: 11px;
+    font-weight: 600;
+    text-transform: uppercase;
+  }
+  .tag-call { background: var(--success-muted); color: var(--success); }
+  .tag-put { background: var(--error-muted); color: var(--error); }
+  .tag-long { background: var(--success-muted); color: var(--success); }
+  .tag-short { background: var(--error-muted); color: var(--error); }
+
+  /* Controls */
+  .controls {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+  .slider-group {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-sub);
+  }
+  .slider-group input[type="range"] {
+    width: 140px;
+    accent-color: var(--primary);
+  }
+  .slider-group .slider-value {
+    font-family: var(--mono);
+    color: var(--text-strong);
+    min-width: 50px;
+  }
+  .btn {
+    padding: 8px 16px;
+    border-radius: var(--radius-sm);
+    border: 1px solid var(--border-sub);
+    background: var(--bg-soft);
+    color: var(--text-strong);
+    font-size: 13px;
+    font-family: var(--font);
+    cursor: pointer;
+    transition: all 0.15s;
+  }
+  .btn:hover { background: var(--bg-sub); border-color: var(--text-soft); }
+  .btn-primary {
+    background: var(--primary);
+    border-color: var(--primary);
+    color: white;
+  }
+  .btn-primary:hover { opacity: 0.9; }
+
+  /* Legend */
+  .legend {
+    display: flex;
+    gap: 16px;
+    font-size: 12px;
+    color: var(--text-sub);
+    flex-wrap: wrap;
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .legend-line {
+    width: 24px;
+    height: 3px;
+    border-radius: 2px;
+  }
+  .legend-line.solid { background: var(--primary); }
+  .legend-line.dashed {
+    background: repeating-linear-gradient(90deg, var(--blue) 0, var(--blue) 6px, transparent 6px, transparent 10px);
+  }
+  .legend-line.dotted {
+    background: repeating-linear-gradient(90deg, var(--purple) 0, var(--purple) 3px, transparent 3px, transparent 7px);
+  }
+
+  /* Scenario Table */
+  .scenario-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(90px, 1fr));
+    gap: 6px;
+  }
+  .scenario-cell {
+    text-align: center;
+    padding: 8px 4px;
+    border-radius: 6px;
+    font-family: var(--mono);
+    font-size: 12px;
+  }
+  .scenario-cell .sc-price {
+    font-size: 11px;
+    color: var(--text-soft);
+    margin-bottom: 2px;
+  }
+  .scenario-cell .sc-pnl { font-weight: 600; }
+
+  /* Two-column layout */
+  .two-col {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 20px;
+  }
+  @media (max-width: 768px) {
+    .two-col { grid-template-columns: 1fr; }
+    .chart-container { height: 300px; }
+  }
+
+  /* Refresh indicator */
+  .refresh-dot {
+    width: 8px; height: 8px;
+    border-radius: 50%;
+    background: var(--success);
+    display: inline-block;
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+</style>
+</head>
+<body>
+
+<div class="container" id="app">
+  <!-- Header -->
+  <div class="header">
+    <h1>
+      <span class="currency" id="h-currency"></span>
+      Options Payoff
+    </h1>
+    <div class="header-meta">
+      <span>Spot: <strong id="h-spot" style="color:var(--text-strong)"></strong></span>
+      <span id="h-time"></span>
+      <span id="h-refresh-area"></span>
+    </div>
+  </div>
+
+  <!-- Plain English Summary -->
+  <div class="card" id="summary-card">
+    <div class="card-body" style="padding:20px 24px;">
+      <div id="strategy-summary" style="font-size:16px;line-height:1.8;"></div>
+    </div>
+  </div>
+
+  <!-- Interactive What-If Slider -->
+  <div class="card">
+    <div class="card-body" style="padding:20px 24px;">
+      <div style="display:flex;align-items:center;gap:16px;flex-wrap:wrap;">
+        <span style="font-size:13px;color:var(--text-sub);white-space:nowrap;">If <span id="wif-currency" style="color:var(--primary)"></span> goes to</span>
+        <input type="range" id="whatif-slider" style="flex:1;min-width:200px;accent-color:var(--primary);">
+        <span id="whatif-price" style="font-family:var(--mono);font-size:20px;font-weight:600;min-width:80px;"></span>
+        <span style="font-size:13px;color:var(--text-soft);" id="whatif-pct"></span>
+      </div>
+      <div id="whatif-result" style="margin-top:16px;font-size:28px;font-weight:700;font-family:var(--mono);text-align:center;padding:12px 0;"></div>
+      <div id="whatif-breakdown" style="text-align:center;font-size:13px;color:var(--text-sub);margin-top:4px;"></div>
+    </div>
+  </div>
+
+  <!-- Key Levels -->
+  <div class="key-levels" id="key-levels"></div>
+
+  <!-- Chart -->
+  <div class="card">
+    <div class="card-header">
+      <h2 id="chart-title">P&L at Expiry</h2>
+      <div class="controls">
+        <div class="slider-group">
+          <label>IV shift</label>
+          <input type="range" id="iv-slider" min="-50" max="50" value="0" step="5">
+          <span class="slider-value" id="iv-value">0%</span>
+        </div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-line solid"></div> At expiry</div>
+          <div class="legend-item"><div class="legend-line dashed"></div> 50% DTE</div>
+          <div class="legend-item"><div class="legend-line dotted"></div> Today</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body" style="padding:12px;">
+      <div class="chart-container">
+        <canvas id="chart"></canvas>
+        <div class="chart-tooltip" id="tooltip"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Greeks + Legs -->
+  <div class="two-col">
+    <!-- Aggregate Greeks -->
+    <div class="card">
+      <div class="card-header"><h2>Aggregate Greeks</h2></div>
+      <div class="card-body">
+        <div class="greeks-grid" id="greeks-grid"></div>
+      </div>
+    </div>
+    <!-- Scenario -->
+    <div class="card">
+      <div class="card-header"><h2>Scenario Analysis (at expiry)</h2></div>
+      <div class="card-body">
+        <div class="scenario-grid" id="scenario-grid"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Legs Table -->
+  <div class="card">
+    <div class="card-header">
+      <h2>Legs (<span id="leg-count">0</span>)</h2>
+    </div>
+    <div class="card-body" style="padding:0;overflow-x:auto;">
+      <table>
+        <thead>
+          <tr>
+            <th>Instrument</th>
+            <th>Type</th>
+            <th>Side</th>
+            <th>Qty</th>
+            <th>Strike</th>
+            <th>Expiry</th>
+            <th>Entry</th>
+            <th>Mark</th>
+            <th>P&L</th>
+            <th>Delta</th>
+            <th>Gamma</th>
+            <th>Theta</th>
+            <th>Vega</th>
+            <th>IV</th>
+          </tr>
+        </thead>
+        <tbody id="legs-tbody"></tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<script>
+// ═══════════════════════════════════════════
+// POSITION DATA — replaced by skill at generation time
+// ═══════════════════════════════════════════
+const POSITION_DATA = {
+  currency: "SOL",
+  spotPrice: 93.40,
+  generatedAt: new Date().toISOString(),
+  legs: [
+    {
+      instrument: "SOL-20260327-85-P",
+      type: "put",
+      strike: 85,
+      expiry: "2026-03-27",
+      expiryLabel: "Mar 27",
+      dte: 11,
+      amount: 4,
+      entryPrice: 2.00,
+      markPrice: 1.73,
+      delta: -0.22,
+      gamma: 0.023,
+      vega: 0.047,
+      theta: -0.18,
+      iv: 0.81
+    },
+    {
+      instrument: "SOL-20260424-110-C",
+      type: "call",
+      strike: 110,
+      expiry: "2026-04-24",
+      expiryLabel: "Apr 24",
+      dte: 39,
+      amount: 3,
+      entryPrice: 3.80,
+      markPrice: 3.46,
+      delta: 0.285,
+      gamma: 0.015,
+      vega: 0.103,
+      theta: -0.096,
+      iv: 0.72
+    }
+  ],
+  deriveApiUrl: "https://api.lyra.finance"
+};
+
+// ═══════════════════════════════════════════
+// BLACK-SCHOLES ENGINE
+// ═══════════════════════════════════════════
+function normCdf(x) {
+  const a1 = 0.254829592, a2 = -0.284496736, a3 = 1.421413741;
+  const a4 = -1.453152027, a5 = 1.061405429, p = 0.3275911;
+  const sign = x < 0 ? -1 : 1;
+  x = Math.abs(x) / Math.sqrt(2);
+  const t = 1.0 / (1.0 + p * x);
+  const y = 1.0 - (((((a5 * t + a4) * t) + a3) * t + a2) * t + a1) * t * Math.exp(-x * x);
+  return 0.5 * (1.0 + sign * y);
+}
+
+function bsPrice(S, K, T, r, sigma, type) {
+  if (T <= 0) return type === 'call' ? Math.max(S - K, 0) : Math.max(K - S, 0);
+  if (sigma <= 0) sigma = 0.001;
+  const d1 = (Math.log(S / K) + (r + 0.5 * sigma * sigma) * T) / (sigma * Math.sqrt(T));
+  const d2 = d1 - sigma * Math.sqrt(T);
+  if (type === 'call') return S * normCdf(d1) - K * Math.exp(-r * T) * normCdf(d2);
+  return K * Math.exp(-r * T) * normCdf(-d2) - S * normCdf(-d1);
+}
+
+// ═══════════════════════════════════════════
+// P&L CALCULATOR
+// ═══════════════════════════════════════════
+
+/**
+ * Calculate P&L at a given price with per-leg time decay.
+ * @param daysForward - days from now (0=today, leg.dte=at each leg's expiry)
+ * @param ivShiftPct - IV shift in percent (e.g., 10 = +10%)
+ */
+function calcPnl(price, legs, daysForward, ivShiftPct) {
+  let total = 0;
+  for (const leg of legs) {
+    // Each leg uses its OWN remaining DTE minus days forward
+    const remainingDte = Math.max(leg.dte - (daysForward || 0), 0);
+    const T = remainingDte / 365;
+    const iv = leg.iv * (1 + (ivShiftPct || 0) / 100);
+    let optionValue;
+    if (remainingDte <= 0) {
+      // Expired — intrinsic only
+      optionValue = leg.type === 'call'
+        ? Math.max(price - leg.strike, 0)
+        : Math.max(leg.strike - price, 0);
+    } else {
+      optionValue = bsPrice(price, leg.strike, T, 0, iv, leg.type);
+    }
+    const pnl = (optionValue - leg.entryPrice) * leg.amount;
+    total += pnl;
+  }
+  return total;
+}
+
+/**
+ * P&L at the nearest expiry date.
+ * Near-dated legs use intrinsic, far-dated legs use BS with remaining time.
+ */
+function calcNearestExpiryPnl(price, legs) {
+  const minDte = Math.min(...legs.map(l => l.dte));
+  return calcPnl(price, legs, minDte, 0);
+}
+
+/**
+ * P&L if ALL legs expired now (intrinsic only). Used for scenario table.
+ */
+function calcAllExpiryPnl(price, legs) {
+  let total = 0;
+  for (const leg of legs) {
+    const intrinsic = leg.type === 'call'
+      ? Math.max(price - leg.strike, 0)
+      : Math.max(leg.strike - price, 0);
+    total += (intrinsic - leg.entryPrice) * leg.amount;
+  }
+  return total;
+}
+
+// ═══════════════════════════════════════════
+// CHART RENDERER
+// ═══════════════════════════════════════════
+const D = POSITION_DATA;
+let canvas, ctx, tooltip;
+let chartBounds = {};
+
+function getChartRange() {
+  if (D.legs.length === 0) {
+    return { min: Math.floor(D.spotPrice * 0.7), max: Math.ceil(D.spotPrice * 1.3) };
+  }
+  const strikes = D.legs.map(l => l.strike);
+  const allPoints = [...strikes, D.spotPrice];
+  const minPoint = Math.min(...allPoints);
+  const maxPoint = Math.max(...allPoints);
+  const range = maxPoint - minPoint || D.spotPrice * 0.3;
+  const pad = Math.max(range * 0.6, D.spotPrice * 0.15);
+  return { min: Math.floor(minPoint - pad), max: Math.ceil(maxPoint + pad) };
+}
+
+function drawChart() {
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.parentElement.getBoundingClientRect();
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
+  const W = rect.width, H = rect.height;
+  const pad = { top: 20, right: 20, bottom: 40, left: 70 };
+  const cw = W - pad.left - pad.right;
+  const ch = H - pad.top - pad.bottom;
+
+  if (D.legs.length === 0) {
+    ctx.fillStyle = '#737373';
+    ctx.font = '16px Inter, sans-serif';
+    ctx.textAlign = 'center';
+    ctx.fillText('No positions to display', W / 2, H / 2);
+    return;
+  }
+
+  const priceRange = getChartRange();
+  const ivShift = parseInt(document.getElementById('iv-slider').value);
+  const steps = 200;
+  const prices = [];
+  for (let i = 0; i <= steps; i++) {
+    prices.push(priceRange.min + (priceRange.max - priceRange.min) * (i / steps));
+  }
+
+  // Calculate all P&L series — per-leg DTE aware
+  const minDte = Math.min(...D.legs.map(l => l.dte));
+  const maxDte = Math.max(...D.legs.map(l => l.dte));
+  // "At nearest expiry": near-dated legs at intrinsic, far-dated at BS with remaining time
+  const expiryPnls = prices.map(p => calcPnl(p, D.legs, minDte, 0));
+  // "Half DTE": each leg loses half its remaining time
+  const halfDays = Math.round(minDte / 2);
+  const halfPnls = prices.map(p => calcPnl(p, D.legs, halfDays, ivShift));
+  // "Today": each leg at its own DTE (daysForward=0)
+  const todayPnls = prices.map(p => calcPnl(p, D.legs, 0, ivShift));
+
+  const allPnls = [...expiryPnls, ...halfPnls, ...todayPnls];
+  let minPnl = Math.min(...allPnls);
+  let maxPnl = Math.max(...allPnls);
+  const pnlPad = (maxPnl - minPnl) * 0.1 || 5;
+  minPnl -= pnlPad; maxPnl += pnlPad;
+
+  chartBounds = { pad, cw, ch, priceRange, minPnl, maxPnl, W, H };
+
+  const toX = p => pad.left + ((p - priceRange.min) / (priceRange.max - priceRange.min)) * cw;
+  const toY = pnl => pad.top + ch - ((pnl - minPnl) / (maxPnl - minPnl)) * ch;
+
+  // Clear
+  ctx.clearRect(0, 0, W, H);
+
+  // Grid lines
+  ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+  ctx.lineWidth = 1;
+  const yTicks = 8;
+  for (let i = 0; i <= yTicks; i++) {
+    const pnl = minPnl + (maxPnl - minPnl) * (i / yTicks);
+    const y = toY(pnl);
+    ctx.beginPath(); ctx.moveTo(pad.left, y); ctx.lineTo(W - pad.right, y); ctx.stroke();
+    ctx.fillStyle = '#737373';
+    ctx.font = '11px JetBrains Mono, monospace';
+    ctx.textAlign = 'right';
+    ctx.fillText('$' + pnl.toFixed(1), pad.left - 8, y + 4);
+  }
+
+  // Zero line
+  if (minPnl < 0 && maxPnl > 0) {
+    const zeroY = toY(0);
+    ctx.strokeStyle = 'rgba(255,255,255,0.12)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([4, 4]);
+    ctx.beginPath(); ctx.moveTo(pad.left, zeroY); ctx.lineTo(W - pad.right, zeroY); ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  // X axis labels
+  const xTicks = 8;
+  ctx.fillStyle = '#737373';
+  ctx.font = '11px JetBrains Mono, monospace';
+  ctx.textAlign = 'center';
+  for (let i = 0; i <= xTicks; i++) {
+    const p = priceRange.min + (priceRange.max - priceRange.min) * (i / xTicks);
+    ctx.fillText('$' + p.toFixed(0), toX(p), H - pad.bottom + 20);
+  }
+
+  // Fill profit/loss regions (expiry)
+  for (let i = 0; i < prices.length - 1; i++) {
+    const x1 = toX(prices[i]), x2 = toX(prices[i + 1]);
+    const y1 = toY(expiryPnls[i]), y2 = toY(expiryPnls[i + 1]);
+    const zeroY = toY(0);
+    const pnl = (expiryPnls[i] + expiryPnls[i + 1]) / 2;
+    ctx.fillStyle = pnl >= 0 ? 'rgba(34,197,94,0.06)' : 'rgba(239,68,68,0.06)';
+    ctx.beginPath();
+    ctx.moveTo(x1, zeroY); ctx.lineTo(x1, y1); ctx.lineTo(x2, y2); ctx.lineTo(x2, zeroY);
+    ctx.closePath(); ctx.fill();
+  }
+
+  // Draw curves
+  function drawCurve(pnls, color, dash, width) {
+    ctx.strokeStyle = color;
+    ctx.lineWidth = width || 2;
+    ctx.setLineDash(dash || []);
+    ctx.beginPath();
+    for (let i = 0; i < prices.length; i++) {
+      const x = toX(prices[i]), y = toY(pnls[i]);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    ctx.setLineDash([]);
+  }
+
+  drawCurve(todayPnls, '#a855f7', [3, 5], 1.5);
+  drawCurve(halfPnls, '#3b82f6', [8, 5], 1.5);
+  drawCurve(expiryPnls, '#ec4899', [], 2.5);
+
+  // Current spot line
+  ctx.strokeStyle = 'rgba(255,255,255,0.3)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([4, 4]);
+  const spotX = toX(D.spotPrice);
+  ctx.beginPath(); ctx.moveTo(spotX, pad.top); ctx.lineTo(spotX, H - pad.bottom); ctx.stroke();
+  ctx.setLineDash([]);
+  ctx.fillStyle = '#a3a3a3';
+  ctx.font = '11px Inter, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('Spot $' + D.spotPrice.toFixed(1), spotX, pad.top - 6);
+
+  // Strike markers
+  for (const leg of D.legs) {
+    const sx = toX(leg.strike);
+    ctx.strokeStyle = 'rgba(255,255,255,0.1)';
+    ctx.lineWidth = 1;
+    ctx.setLineDash([2, 4]);
+    ctx.beginPath(); ctx.moveTo(sx, pad.top); ctx.lineTo(sx, H - pad.bottom); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#525252';
+    ctx.font = '10px Inter, sans-serif';
+    ctx.fillText('$' + leg.strike, sx, H - pad.bottom + 32);
+  }
+
+  // Breakeven markers
+  const breakevens = findBreakevens(prices, expiryPnls);
+  for (const be of breakevens) {
+    const bx = toX(be);
+    ctx.strokeStyle = 'rgba(234,179,8,0.5)';
+    ctx.lineWidth = 1.5;
+    ctx.setLineDash([3, 3]);
+    ctx.beginPath(); ctx.moveTo(bx, pad.top); ctx.lineTo(bx, H - pad.bottom); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.fillStyle = '#eab308';
+    ctx.font = 'bold 11px JetBrains Mono, monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText('BE $' + be.toFixed(1), bx, H - pad.bottom + 32);
+  }
+
+  // Store for hover
+  chartBounds.prices = prices;
+  chartBounds.expiryPnls = expiryPnls;
+  chartBounds.halfPnls = halfPnls;
+  chartBounds.todayPnls = todayPnls;
+  chartBounds.toX = toX;
+  chartBounds.toY = toY;
+}
+
+function findBreakevens(prices, pnls) {
+  const result = [];
+  for (let i = 1; i < pnls.length; i++) {
+    if ((pnls[i - 1] < 0 && pnls[i] >= 0) || (pnls[i - 1] >= 0 && pnls[i] < 0)) {
+      const ratio = Math.abs(pnls[i - 1]) / (Math.abs(pnls[i - 1]) + Math.abs(pnls[i]));
+      result.push(prices[i - 1] + (prices[i] - prices[i - 1]) * ratio);
+    }
+  }
+  return result;
+}
+
+// ═══════════════════════════════════════════
+// TOOLTIP
+// ═══════════════════════════════════════════
+function handleMouseMove(e) {
+  const rect = canvas.getBoundingClientRect();
+  const mx = e.clientX - rect.left;
+  const my = e.clientY - rect.top;
+  const { pad, cw, priceRange, prices, expiryPnls, halfPnls, todayPnls } = chartBounds;
+
+  if (mx < pad.left || mx > pad.left + cw || !prices) {
+    tooltip.style.display = 'none';
+    return;
+  }
+
+  const priceFrac = (mx - pad.left) / cw;
+  const price = priceRange.min + priceFrac * (priceRange.max - priceRange.min);
+  const idx = Math.round(priceFrac * (prices.length - 1));
+  if (idx < 0 || idx >= prices.length) { tooltip.style.display = 'none'; return; }
+
+  const ep = expiryPnls[idx];
+  const totalCost = D.legs.reduce((s, l) => s + l.entryPrice * Math.abs(l.amount), 0);
+  const pctReturn = totalCost > 0 ? (ep / totalCost * 100) : 0;
+
+  tooltip.innerHTML = `
+    <div class="tt-price">$${price.toFixed(1)} (${((price/D.spotPrice - 1)*100).toFixed(1)}% from spot)</div>
+    <div class="tt-pnl ${ep >= 0 ? 'profit' : 'loss'}">${ep >= 0 ? '+' : ''}$${ep.toFixed(2)}</div>
+    <div class="tt-pct">${pctReturn >= 0 ? '+' : ''}${pctReturn.toFixed(1)}% return</div>
+    <div style="margin-top:6px;font-size:11px;color:var(--text-soft)">
+      Today: $${todayPnls[idx].toFixed(2)} · Mid: $${halfPnls[idx].toFixed(2)}
+    </div>
+  `;
+  tooltip.style.display = 'block';
+
+  let tx = mx + 16, ty = my - 40;
+  const tw = tooltip.offsetWidth;
+  if (tx + tw > rect.width - 10) tx = mx - tw - 16;
+  if (ty < 10) ty = 10;
+  tooltip.style.left = tx + 'px';
+  tooltip.style.top = ty + 'px';
+}
+
+// ═══════════════════════════════════════════
+// UI BUILDERS
+// ═══════════════════════════════════════════
+function renderSummary() {
+  const container = document.getElementById('strategy-summary');
+  if (D.legs.length === 0) { container.textContent = 'No positions.'; return; }
+
+  // Generate plain English
+  const lines = [];
+  const legDescs = D.legs.map(l => {
+    const side = l.amount > 0 ? 'Long' : 'Short';
+    const qty = Math.abs(l.amount);
+    return `${side} ${qty}x ${l.type.toUpperCase()} @ $${l.strike} (${l.expiryLabel})`;
+  });
+  lines.push(`<span style="color:var(--text-sub)">Strategy:</span> ${legDescs.join(' + ')}`);
+
+  // Calculate breakevens for explanation
+  const range = getChartRange();
+  const ps = []; for(let i=0;i<=500;i++) ps.push(range.min+(range.max-range.min)*(i/500));
+  const pnls = ps.map(p => calcAllExpiryPnl(p, D.legs));
+  const bes = findBreakevens(ps, pnls);
+
+  if (bes.length > 0) {
+    const beStrs = bes.map(b => `<strong style="color:var(--warning)">$${b.toFixed(1)}</strong>`);
+    if (bes.length === 1) {
+      const profitAbove = pnls[pnls.length-1] > 0;
+      lines.push(`You profit if ${D.currency} is ${profitAbove ? 'above' : 'below'} ${beStrs[0]} at expiry.`);
+    } else {
+      lines.push(`Breakevens at ${beStrs.join(' and ')} — you profit outside this range.`);
+    }
+  }
+
+  // Dead zone warning
+  const allStrikes = D.legs.map(l => l.strike);
+  const hasCallsAndPuts = D.legs.some(l => l.type === 'call') && D.legs.some(l => l.type === 'put');
+  if (hasCallsAndPuts && bes.length >= 2) {
+    lines.push(`<span style="color:var(--error)">Dead zone:</span> $${bes[0].toFixed(0)}–$${bes[1].toFixed(0)} — max loss if ${D.currency} stays in this range.`);
+  }
+
+  container.innerHTML = lines.map(l => `<div>${l}</div>`).join('');
+}
+
+function renderWhatIf() {
+  const slider = document.getElementById('whatif-slider');
+  const range = getChartRange();
+  slider.min = range.min;
+  slider.max = range.max;
+  slider.value = D.spotPrice;
+  slider.step = ((range.max - range.min) / 200).toFixed(2);
+  document.getElementById('wif-currency').textContent = D.currency;
+  updateWhatIf();
+}
+
+function updateWhatIf() {
+  const price = parseFloat(document.getElementById('whatif-slider').value);
+  const pnl = calcAllExpiryPnl(price, D.legs);
+  const totalCost = Math.abs(D.legs.reduce((s, l) => s + l.entryPrice * l.amount, 0));
+  const pctReturn = totalCost > 0 ? (pnl / totalCost * 100) : 0;
+  const pctFromSpot = ((price / D.spotPrice - 1) * 100);
+
+  document.getElementById('whatif-price').textContent = '$' + price.toFixed(1);
+  document.getElementById('whatif-pct').textContent = `(${pctFromSpot >= 0 ? '+' : ''}${pctFromSpot.toFixed(1)}% from spot)`;
+
+  const resultEl = document.getElementById('whatif-result');
+  resultEl.style.color = pnl >= 0 ? 'var(--success)' : 'var(--error)';
+  resultEl.textContent = `${pnl >= 0 ? 'Profit' : 'Loss'}: ${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}`;
+
+  // Per-leg breakdown
+  const breakdownParts = D.legs.map(l => {
+    const intrinsic = l.type === 'call' ? Math.max(price - l.strike, 0) : Math.max(l.strike - price, 0);
+    const legPnl = (intrinsic - l.entryPrice) * l.amount;
+    const color = legPnl >= 0 ? 'var(--success)' : 'var(--error)';
+    return `<span>${l.strike}${l.type[0].toUpperCase()}: <span style="color:${color}">${legPnl >= 0 ? '+' : ''}$${legPnl.toFixed(1)}</span></span>`;
+  });
+  document.getElementById('whatif-breakdown').innerHTML = breakdownParts.join(' · ');
+}
+
+function renderHeader() {
+  document.getElementById('page-title').textContent = `Options Payoff — ${D.currency}`;
+  document.getElementById('h-currency').textContent = D.currency;
+  document.getElementById('h-spot').textContent = '$' + D.spotPrice.toFixed(2);
+  const dt = new Date(D.generatedAt);
+  document.getElementById('h-time').textContent = dt.toLocaleString();
+
+  if (D.deriveApiUrl) {
+    document.getElementById('h-refresh-area').innerHTML =
+      '<button class="btn" onclick="refreshPrices()" id="refresh-btn">↻ Refresh</button>';
+  }
+}
+
+function renderKeyLevels() {
+  const container = document.getElementById('key-levels');
+  const netDebit = D.legs.reduce((s, l) => s + l.entryPrice * l.amount, 0);
+  const hasShortLegs = D.legs.some(l => l.amount < 0);
+  const hasShortCalls = D.legs.some(l => l.amount < 0 && l.type === 'call');
+
+  const range = getChartRange();
+  const prices = [];
+  // Use wider range to detect unbounded risk
+  const wideMin = Math.max(0, D.spotPrice * 0.01);
+  const wideMax = D.spotPrice * 3;
+  for (let i = 0; i <= 1000; i++) prices.push(wideMin + (wideMax - wideMin) * (i / 1000));
+  const expiryPnls = prices.map(p => calcAllExpiryPnl(p, D.legs));
+  const maxProfit = Math.max(...expiryPnls);
+  const minPnlVal = Math.min(...expiryPnls);
+  const breakevens = findBreakevens(prices, expiryPnls);
+
+  // Detect if loss/profit is unbounded (still growing at edges of range)
+  const edgePnlLow = expiryPnls[0];
+  const edgePnlHigh = expiryPnls[expiryPnls.length - 1];
+  const lossUnbounded = hasShortCalls && edgePnlHigh < minPnlVal + 1;
+  const profitUnbounded = maxProfit === edgePnlHigh && edgePnlHigh > expiryPnls[expiryPnls.length - 10] + 0.5;
+
+  const levels = [
+    { label: 'Net Cost', value: (netDebit >= 0 ? '-' : '+') + '$' + Math.abs(netDebit).toFixed(2), cls: '', sub: netDebit >= 0 ? 'Debit paid' : 'Credit received' },
+    { label: 'Max Profit', value: profitUnbounded ? 'Unlimited' : '$' + maxProfit.toFixed(2), cls: 'profit', sub: profitUnbounded ? 'Uncapped upside' : '' },
+    { label: 'Max Loss', value: lossUnbounded ? 'Unlimited' : '$' + Math.abs(minPnlVal).toFixed(2), cls: 'loss', sub: lossUnbounded ? 'Uncapped — short calls' : hasShortLegs ? 'At worst scenario' : 'Premium at risk' },
+  ];
+
+  for (const be of breakevens) {
+    const pctFromSpot = ((be / D.spotPrice - 1) * 100).toFixed(1);
+    levels.push({
+      label: 'Breakeven',
+      value: '$' + be.toFixed(1),
+      cls: '',
+      sub: (pctFromSpot >= 0 ? '+' : '') + pctFromSpot + '% from spot'
+    });
+  }
+
+  container.innerHTML = levels.map(l => `
+    <div class="level-card">
+      <div class="label">${l.label}</div>
+      <div class="value ${l.cls}">${l.value}</div>
+      ${l.sub ? `<div class="sub">${l.sub}</div>` : ''}
+    </div>
+  `).join('');
+}
+
+function renderGreeks() {
+  const container = document.getElementById('greeks-grid');
+  const agg = { delta: 0, gamma: 0, vega: 0, theta: 0 };
+  for (const leg of D.legs) {
+    // All greeks use signed amount — short positions flip the sign
+    agg.delta += leg.delta * leg.amount;
+    agg.gamma += leg.gamma * leg.amount;
+    agg.vega += leg.vega * leg.amount;
+    agg.theta += leg.theta * leg.amount;
+  }
+
+  const greeks = [
+    { label: 'Delta', value: agg.delta.toFixed(3), color: Math.abs(agg.delta) < 0.1 ? 'var(--text-sub)' : agg.delta > 0 ? 'var(--success)' : 'var(--error)' },
+    { label: 'Gamma', value: agg.gamma.toFixed(4), color: 'var(--blue)' },
+    { label: 'Theta', value: '$' + agg.theta.toFixed(2) + '/d', color: agg.theta < 0 ? 'var(--error)' : 'var(--success)' },
+    { label: 'Vega', value: agg.vega.toFixed(3), color: 'var(--purple)' },
+  ];
+
+  container.innerHTML = greeks.map(g => `
+    <div class="greek-item">
+      <div class="greek-label">${g.label}</div>
+      <div class="greek-value" style="color:${g.color}">${g.value}</div>
+    </div>
+  `).join('');
+}
+
+function renderLegs() {
+  const tbody = document.getElementById('legs-tbody');
+  document.getElementById('leg-count').textContent = D.legs.length;
+
+  tbody.innerHTML = D.legs.map(l => {
+    const pnl = (l.markPrice - l.entryPrice) * l.amount;
+    return `<tr>
+      <td style="font-size:12px">${l.instrument}</td>
+      <td><span class="tag tag-${l.type}">${l.type.toUpperCase()}</span></td>
+      <td><span class="tag tag-${l.amount > 0 ? 'long' : 'short'}">${l.amount > 0 ? 'LONG' : 'SHORT'}</span></td>
+      <td>${Math.abs(l.amount)}</td>
+      <td>$${l.strike}</td>
+      <td>${l.expiryLabel} <span style="color:var(--text-soft)">(${l.dte}d)</span></td>
+      <td>$${l.entryPrice.toFixed(2)}</td>
+      <td>$${l.markPrice.toFixed(2)}</td>
+      <td style="color:${pnl >= 0 ? 'var(--success)' : 'var(--error)'}">${pnl >= 0 ? '+' : ''}$${pnl.toFixed(2)}</td>
+      <td>${l.delta.toFixed(3)}</td>
+      <td>${l.gamma.toFixed(4)}</td>
+      <td>${l.theta.toFixed(3)}</td>
+      <td>${l.vega.toFixed(3)}</td>
+      <td>${(l.iv * 100).toFixed(1)}%</td>
+    </tr>`;
+  }).join('');
+}
+
+function renderScenarios() {
+  const container = document.getElementById('scenario-grid');
+  const pctMoves = [-30, -20, -15, -10, -5, 0, 5, 10, 15, 20, 30];
+  const totalCost = D.legs.reduce((s, l) => s + l.entryPrice * Math.abs(l.amount), 0);
+
+  container.innerHTML = pctMoves.map(pct => {
+    const price = D.spotPrice * (1 + pct / 100);
+    const pnl = calcAllExpiryPnl(price, D.legs);
+    const ret = totalCost > 0 ? (pnl / totalCost * 100) : 0;
+    const color = pnl >= 0 ? 'var(--success)' : 'var(--error)';
+    const bg = pnl >= 0 ? 'var(--success-muted)' : 'var(--error-muted)';
+    return `<div class="scenario-cell" style="background:${bg}">
+      <div class="sc-price">${pct >= 0 ? '+' : ''}${pct}%</div>
+      <div class="sc-pnl" style="color:${color}">${pnl >= 0 ? '+' : ''}$${pnl.toFixed(1)}</div>
+      <div style="font-size:10px;color:var(--text-soft)">${ret >= 0 ? '+' : ''}${ret.toFixed(0)}%</div>
+    </div>`;
+  }).join('');
+}
+
+// ═══════════════════════════════════════════
+// LIVE REFRESH (optional Derive API)
+// ═══════════════════════════════════════════
+async function refreshPrices() {
+  if (!D.deriveApiUrl) return;
+  const btn = document.getElementById('refresh-btn');
+  btn.textContent = '↻ Loading...';
+  btn.disabled = true;
+
+  try {
+    // Fetch perp for spot price
+    const perpRes = await fetch(D.deriveApiUrl + '/public/get_ticker', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ instrument_name: D.currency + '-PERP' })
+    });
+    const perpData = await perpRes.json();
+    if (perpData.result) {
+      D.spotPrice = parseFloat(perpData.result.index_price);
+    }
+
+    // Fetch all leg tickers in parallel
+    await Promise.allSettled(D.legs.map(async (leg) => {
+      try {
+        const res = await fetch(D.deriveApiUrl + '/public/get_ticker', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ instrument_name: leg.instrument })
+        });
+        const data = await res.json();
+        if (data.result) {
+          leg.markPrice = parseFloat(data.result.mark_price);
+          if (data.result.option_pricing) {
+            const op = data.result.option_pricing;
+            leg.delta = parseFloat(op.delta || leg.delta);
+            leg.gamma = parseFloat(op.gamma || leg.gamma);
+            leg.vega = parseFloat(op.vega || leg.vega);
+            leg.theta = parseFloat(op.theta || leg.theta);
+            let iv = parseFloat(op.iv || leg.iv);
+            // Guard: if IV > 10, it's likely in percentage form — convert to decimal
+            if (iv > 10) iv = iv / 100;
+            leg.iv = iv;
+          }
+        }
+      } catch(e) { console.warn('Failed to fetch', leg.instrument, e); }
+    }));
+
+    // Update DTE
+    for (const leg of D.legs) {
+      const expDate = new Date(leg.expiry + 'T08:00:00Z');
+      leg.dte = Math.max(0, Math.ceil((expDate - Date.now()) / 86400000));
+    }
+
+    D.generatedAt = new Date().toISOString();
+    renderAll();
+    btn.textContent = '✓ Updated';
+    setTimeout(() => { btn.textContent = '↻ Refresh'; }, 2000);
+  } catch(e) {
+    btn.textContent = '✗ Failed';
+    setTimeout(() => { btn.textContent = '↻ Refresh'; }, 2000);
+    console.error('Refresh failed:', e);
+  } finally {
+    btn.disabled = false;
+  }
+}
+
+// ═══════════════════════════════════════════
+// INIT
+// ═══════════════════════════════════════════
+function renderAll() {
+  renderHeader();
+  renderSummary();
+  renderWhatIf();
+  renderKeyLevels();
+  renderGreeks();
+  renderLegs();
+  renderScenarios();
+  drawChart();
+
+  // Update chart title for multi-expiry
+  const dtes = [...new Set(D.legs.map(l => l.dte))];
+  if (dtes.length > 1) {
+    const minDte = Math.min(...dtes);
+    const nearExpiry = D.legs.find(l => l.dte === minDte);
+    document.getElementById('chart-title').textContent = `P&L at Nearest Expiry (${nearExpiry?.expiryLabel || minDte + 'd'})`;
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  canvas = document.getElementById('chart');
+  ctx = canvas.getContext('2d');
+  tooltip = document.getElementById('tooltip');
+
+  canvas.addEventListener('mousemove', handleMouseMove);
+  canvas.addEventListener('mouseleave', () => tooltip.style.display = 'none');
+
+  document.getElementById('iv-slider').addEventListener('input', (e) => {
+    document.getElementById('iv-value').textContent = e.target.value + '%';
+    drawChart();
+  });
+
+  document.getElementById('whatif-slider').addEventListener('input', updateWhatIf);
+
+  window.addEventListener('resize', drawChart);
+  renderAll();
+});
+</script>
+</body>
+</html>
