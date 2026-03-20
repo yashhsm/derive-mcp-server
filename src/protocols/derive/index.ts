@@ -40,6 +40,7 @@ import { cancelByInstrument } from "./private/orders/cancel-by-instrument.js";
 import { cancelByLabel } from "./private/orders/cancel-by-label.js";
 import { cancelAllOrders } from "./private/orders/cancel-all-orders.js";
 import { getOpenOrders } from "./private/orders/get-open-orders.js";
+import { getOrder } from "./private/orders/get-order.js";
 import { getOrderHistory } from "./private/orders/get-order-history.js";
 import { getTradeHistoryPrivate } from "./private/orders/get-trade-history.js";
 
@@ -48,6 +49,7 @@ import { sendRfq } from "./private/rfq/send-rfq.js";
 import { getRfqs } from "./private/rfq/get-rfqs.js";
 import { cancelRfq } from "./private/rfq/cancel-rfq.js";
 import { getQuotes } from "./private/rfq/get-quotes.js";
+import { executeQuote } from "./private/rfq/execute-quote.js";
 
 // Private: Transfers
 import { getDepositHistory } from "./private/transfers/get-deposit-history.js";
@@ -102,6 +104,7 @@ export const derive: Protocol = {
     cancel_by_label: cancelByLabel,
     cancel_all_orders: cancelAllOrders,
     get_open_orders: getOpenOrders,
+    get_order: getOrder,
     get_order_history: getOrderHistory,
     get_trade_history_private: getTradeHistoryPrivate,
 
@@ -110,6 +113,7 @@ export const derive: Protocol = {
     get_rfqs: getRfqs,
     cancel_rfq: cancelRfq,
     get_quotes: getQuotes,
+    execute_quote: executeQuote,
 
     // Private: Transfers
     get_deposit_history: getDepositHistory,

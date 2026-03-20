@@ -20,13 +20,17 @@ export const placeOrder: Action<typeof schema> = {
   name: "place_order",
   protocol: "derive",
   description:
-    "Place an order. Handles EIP-712 signing automatically. Returns order status and any immediate fills. " +
+    "Place an order. Handles EIP-712 signing automatically. Returns order_id and order status. " +
+    "IMPORTANT: For IOC/FOK orders, the order may already be filled or cancelled by the time you read the response. " +
+    "Use get_order(order_id) after placing to confirm fill status, filled_amount, and average_price. " +
     "MARGIN RULES: Selling/shorting options requires margin. On Standard Margin (SM), short options are treated as NAKED — " +
     "the full margin is required even if you hold a protective long leg. SM does NOT recognize spreads. " +
     "Credit spreads (bull put, bear call) ONLY work on Portfolio Margin (PM/PM2). " +
     "Before selling options: 1) check margin_type via get_subaccount, 2) simulate the sell leg ALONE via get_margin, " +
     "3) if SM, only sell options if you have enough margin for naked exposure. " +
-    "Buying options only requires the premium — no additional margin needed.",
+    "Buying options only requires the premium — no additional margin needed. " +
+    "INSTRUMENT CONSTRAINTS: Check minimum_amount and amount_step via get_instruments before placing. " +
+    "Common minimums: ETH options 0.1, BTC options 0.01, SOL options 0.1, HYPE options 1.",
   schema,
   responseSchema: rawResponseSchema,
   auth: "write",

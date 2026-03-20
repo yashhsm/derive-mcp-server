@@ -27,7 +27,11 @@ export const getPortfolioSummary: Action<typeof schema> = {
   description:
     "Get a complete portfolio overview in a single call: USDC balance, all positions with greeks, and aggregate totals. " +
     "Returns {balance, positions: [...], totals: {value, unrealized_pnl, delta, gamma, vega, theta}}. " +
-    "Use this INSTEAD of calling get_collaterals + get_positions separately — saves a tool call and does the aggregation for you.",
+    "Use this INSTEAD of calling get_collaterals + get_positions separately — saves a tool call and does the aggregation for you. " +
+    "IMPORTANT: totals.delta is summed across ALL currencies (BTC + ETH + SOL + HYPE). " +
+    "For hedging a specific currency, filter positions by currency prefix (e.g., instrument.startsWith('ETH')) and sum their deltas. " +
+    "NOTE: positions include mark_price but NOT bid/ask. To close options, use get_tickers(expiry) for real MM quotes. " +
+    "Theta values are in USD/day for the full position size (already scaled by amount).",
   schema,
   responseSchema: rawResponseSchema,
   auth: "read",

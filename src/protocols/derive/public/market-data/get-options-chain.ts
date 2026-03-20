@@ -73,8 +73,9 @@ export const getOptionsChain: Action<typeof schema> = {
   description:
     "Get a structured options chain for a currency — strikes as rows, calls and puts as columns, with bid/ask/mark/IV/greeks/OI. " +
     "This is the RECOMMENDED tool for analyzing options. Returns a compact, pre-filtered chain instead of raw ticker data. " +
-    "Defaults to only_liquid=true and ±30% from spot. " +
-    "Response: {index_price, expiries: [{expiry, chain: [{strike, call: {bid,ask,mark,iv,delta,...}, put: {...}}]}]}",
+    "Defaults to only_liquid=true and ±30% from spot. Bid/ask here are from MM streaming quotes (real executable prices). " +
+    "NOTE: Does NOT include minimum_amount or amount_step. Call get_instruments(compact=true) alongside if you need lot sizes for order placement. " +
+    "Response: {index_price, expiries: [{expiry, dte, chain: [{strike, call: {bid,ask,mark,iv,delta,...}, put: {...}}]}]}",
   schema,
   responseSchema: rawResponseSchema,
   auth: "public",

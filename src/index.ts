@@ -4,6 +4,7 @@ import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import { z } from "zod";
 import { derive } from "./protocols/derive/index.js";
+import { lifecycleTools } from "./protocols/derive/lifecycle/index.js";
 import {
   API_URL,
   WALLET_ADDRESS,
@@ -108,6 +109,11 @@ server.tool(
     return { content: [{ type: "text", text: JSON.stringify(status, null, 2) }] };
   }
 );
+
+// Register lifecycle tools (composite tools with audit logging)
+for (const [toolName, tool] of Object.entries(lifecycleTools)) {
+  server.tool(toolName, tool.description, tool.schema, tool.handler);
+}
 
 // ============================================
 // START
