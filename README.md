@@ -1,23 +1,41 @@
 # Derive MCP Server
 
-An MCP (Model Context Protocol) server that gives AI assistants full access to [Derive](https://derive.xyz) (formerly Lyra) — the largest onchain options exchange.
+> [!WARNING]
+> Experimental version. This MCP server is still experimental and should not be treated as production-grade trading infrastructure. Tool names, response shapes, lifecycle helpers, and operational behavior may change. Review every action carefully before using it with live funds.
 
-**41 tools** covering options, perps, RFQ, portfolio management, and market data. Handles EIP-712 order signing automatically — your AI can research, quote, and execute derivatives trades in natural language.
+An MCP (Model Context Protocol) server for [Derive](https://derive.xyz) (formerly Lyra), built for AI assistants that need structured market data, account visibility, raw execution primitives, and safer lifecycle helpers for derivatives trading.
 
-## What Can It Do?
+This repo currently exposes **52 tools total**:
 
+- **43 core Derive tools** mapped from the API
+- **8 lifecycle and audit tools** layered on top
+- **1 `auth_status` meta tool** for runtime capability checks
+
+It works with Claude Code, Claude Desktop, and any MCP client that supports `stdio`.
+
+## What It Covers
+
+- Public market data: options chains, tickers, instruments, trade history, charts, funding, liquidations, rates
+- Authenticated account data: subaccounts, notifications, positions, portfolio summary, margin, transfers, session keys
+- Raw execution: place/replace/cancel orders, RFQ flows, open orders, order history, private trade history
+- Operational controls: cancel-on-disconnect and market maker protection (MMP)
+- Lifecycle helpers: normalized receipts, audit logging, RFQ polling, quote acceptance, multi-leg margin checks, reconciliation
+
+## What It Looks Like In Use
+
+```text
+You:    "Show me the liquid SOL options chain for the nearest expiry"
+Client: [calls get_options_chain] -> structured chain with bid/ask/mark/IV/greeks
+
+You:    "Check my current Derive portfolio"
+Client: [calls get_portfolio_summary] -> balance, positions, aggregate greeks, PnL
+
+You:    "Buy 0.1 of this contract and verify the fill"
+Client: [calls place_and_verify] -> normalized receipt, warnings, audit log event
+
+You:    "Price this two-leg spread through RFQ and execute the best quote"
+Client: [calls create_rfq -> await_rfq_quotes -> accept_rfq_quote]
 ```
-You:    "Show me the SOL options chain for March expiry, only liquid strikes"
-Claude: [calls get_options_chain] → structured chain with bid/ask/IV/greeks
-
-You:    "Buy 4x SOL Mar27 85 puts at the ask"
-Claude: [calls place_order] → order filled, shows trade details
-
-You:    "How's my portfolio looking?"
-Claude: [calls get_portfolio_summary] → balance, positions, aggregate greeks, P&L
-```
-
-Works with Claude Code, Claude Desktop, Cursor, and any MCP-compatible client.
 
 ## Quick Start
 
@@ -30,40 +48,61 @@ npm install
 npm run build
 ```
 
-### 2. Configure credentials
+Requires Node.js `>=18`.
 
-Create `~/.config/derive-mcp/env` (or any path you prefer):
+### 2. Choose an auth mode
+
+You can run the server in three modes:
+
+| Mode | Required env | What it unlocks |
+|---|---|---|
+| Public only | none | Public market data and chart tools only |
+| API key | `DERIVE_API_KEY` | Authenticated private requests that do not require local EIP-712 signing |
+| Session-key trading | `DERIVE_SESSION_PRIVATE_KEY`, `DERIVE_WALLET_ADDRESS`, `DERIVE_SUBACCOUNT_ID` | Signed order placement and RFQ quote execution |
+
+Notes:
+
+- `DERIVE_SUBACCOUNT_ID` is effectively required for signed trading flows because order signing uses the default subaccount from env.
+- Legacy aliases are also supported: `LYRA_SESSION_PRIVATE_KEY`, `LYRA_WALLET_ADDRESS`, `LYRA_SUBACCOUNT_ID`.
+- `DERIVE_TESTNET=true` switches the server to `https://api-demo.lyra.finance`.
+- `DERIVE_API_URL` can override the base URL directly.
+
+Example env file:
 
 ```bash
 mkdir -p ~/.config/derive-mcp
 cat > ~/.config/derive-mcp/env << 'EOF'
+# Signed trading mode
 DERIVE_SESSION_PRIVATE_KEY=your_session_key_here
-DERIVE_WALLET_ADDRESS=your_wallet_address_here
-DERIVE_SUBACCOUNT_ID=your_subaccount_id_here
+DERIVE_WALLET_ADDRESS=0xyourwallet
+DERIVE_SUBACCOUNT_ID=123
+
+# Optional alternatives / overrides
+# DERIVE_API_KEY=your_api_key_here
+# DERIVE_TESTNET=true
+# DERIVE_API_URL=https://api.lyra.finance
 EOF
 chmod 600 ~/.config/derive-mcp/env
 ```
 
-**Getting credentials:**
-- Go to [derive.xyz](https://derive.xyz), connect your wallet
-- Create a session key from Account Settings
-- Your subaccount ID is visible in the URL or account page
-
-> **Read-only mode:** Omit `DERIVE_SESSION_PRIVATE_KEY` to use the server for market data only (no trading).
-
 ### 3. Create a launcher script
 
+This keeps secrets out of repo config and works for public-only mode too.
+
 ```bash
+mkdir -p ~/.local/bin
 cat > ~/.local/bin/derive-mcp-launcher << 'SCRIPT'
 #!/bin/bash
 set -euo pipefail
 
-DERIVE_SERVER="/path/to/derive-mcp-server/dist/index.js"
-DERIVE_ENV_FILE="$HOME/.config/derive-mcp/env"
+DERIVE_SERVER="/absolute/path/to/derive-mcp-server/dist/index.js"
+DERIVE_ENV_FILE="${DERIVE_ENV_FILE:-$HOME/.config/derive-mcp/env}"
 
-set -a
-source "$DERIVE_ENV_FILE"
-set +a
+if [ -f "$DERIVE_ENV_FILE" ]; then
+  set -a
+  . "$DERIVE_ENV_FILE"
+  set +a
+fi
 
 exec node "$DERIVE_SERVER" "$@"
 SCRIPT
@@ -71,175 +110,254 @@ SCRIPT
 chmod +x ~/.local/bin/derive-mcp-launcher
 ```
 
-### 4. Add to your MCP client
+### 4. Add it to your MCP client
+
+Generic `stdio` example:
+
+```json
+{
+  "mcpServers": {
+    "derive": {
+      "command": "/Users/you/.local/bin/derive-mcp-launcher"
+    }
+  }
+}
+```
 
 **Claude Code** (`~/.claude.json`):
+
 ```json
 {
   "mcpServers": {
     "derive": {
       "type": "stdio",
-      "command": "/path/to/derive-mcp-launcher"
+      "command": "/Users/you/.local/bin/derive-mcp-launcher"
     }
   }
 }
 ```
 
 **Claude Desktop** (`~/Library/Application Support/Claude/claude_desktop_config.json`):
+
 ```json
 {
   "mcpServers": {
     "derive": {
-      "command": "/path/to/derive-mcp-launcher"
+      "command": "/Users/you/.local/bin/derive-mcp-launcher"
     }
   }
 }
 ```
 
-## Tools
+## Recommended Tooling Patterns
 
-### Market Data (public, no auth needed)
+If you are building an agent on top of this server, these are the safest defaults:
+
+- Start with `auth_status` to see which capabilities are actually available at runtime.
+- Start with `get_options_chain` for options analysis, not `get_ticker`.
+- Use `get_tickers` for executable options quotes from market makers; use `get_instruments(compact=true)` alongside it when you need lot sizes.
+- Prefer `place_and_verify` over raw `place_order` if you want normalized receipts, error classification, and audit logging.
+- Prefer `create_rfq`, `await_rfq_quotes`, and `accept_rfq_quote` over raw RFQ tools if you want a complete multi-step flow.
+- Run `check_multi_leg_margin` before any short-leg or spread strategy, especially on Standard Margin accounts.
+- Use `order_audit_log` and `reconcile` if you want a local operational history of orders placed through lifecycle tools.
+
+## Tool Surface
+
+### Public Market Data And Charts (12)
 
 | Tool | Description |
-|------|-------------|
-| `get_options_chain` | Structured options chain — strikes as rows, calls/puts as columns, with bid/ask/IV/greeks/OI. **Start here for options analysis.** |
-| `get_tickers` | Batch MM streaming quotes. Use `only_liquid=true` to filter dead strikes (89% noise reduction). |
-| `get_ticker` | Single instrument details: mark, index, greeks, funding, OI, fees, tick size. |
-| `get_instruments` | Discover available instruments. Use `compact=true` and strike filters to avoid huge responses. |
+|---|---|
+| `get_options_chain` | Structured options chain with strikes as rows and call/put columns. Best starting point for options analysis. |
+| `get_tickers` | Batch pricing with market-maker quotes, greeks, IV, and liquidity filtering. Primary pricing tool for options. |
+| `get_ticker` | Detailed single-instrument metadata. Best for perps and instrument metadata, not option bid/ask discovery. |
+| `get_instruments` | Active instruments for a currency and type, with useful filters for options. |
+| `get_all_instruments` | Paginated list of all instruments across currencies. |
 | `get_trade_history_public` | Public trade history. |
-| `get_funding_rate_history` | Perp funding rate history. |
-| `get_index_chart_data` | Spot/index OHLC candles. |
-| `get_tradingview_chart_data` | Instrument OHLCV candles. |
+| `get_funding_rate_history` | Historical perp funding rates. |
+| `get_interest_rate_history` | Historical USDC borrow and supply APY. |
 | `get_liquidation_history` | Liquidation auction history. |
-| `get_interest_rate_history` | USDC borrow/supply APY history. |
 | `get_transaction` | Transaction status lookup. |
-| `get_all_instruments` | Paginated list of all instruments. |
+| `get_index_chart_data` | Spot or index OHLC candles. |
+| `get_tradingview_chart_data` | Instrument OHLCV candle data. |
 
-### Portfolio & Account (auth required)
+### Account, Portfolio, Transfers, And Session (12)
 
 | Tool | Description |
-|------|-------------|
-| `get_portfolio_summary` | **One-call portfolio overview**: USDC balance, all positions with greeks, and aggregate totals. Use this instead of separate calls. |
-| `get_positions` | Active positions with greeks, PnL, margin, liquidation prices. |
-| `get_collaterals` | Collateral holdings with mark values. |
-| `get_margin` | Current margin info and trade simulation. |
-| `get_subaccount` | Full subaccount snapshot. |
-| `get_subaccounts` | List all subaccount IDs. |
-| `get_account` | Account details: fee tiers, rate limits. |
-| `get_open_orders` | All open orders. |
-| `get_order_history` | Historical orders. |
-| `get_trade_history_private` | Private trade fills with PnL and fees. |
+|---|---|
+| `get_account` | Account details such as fee tier, rate limits, and subaccount info. |
+| `get_subaccounts` | List available subaccount IDs. |
+| `get_subaccount` | Full subaccount snapshot including margin type, positions, open orders, and value. |
 | `get_notifications` | Account notifications. |
+| `get_positions` | All active positions with greeks, PnL, margin, and liquidation data. |
+| `get_collaterals` | Collateral holdings with mark values and interest. |
+| `get_margin` | Current margin plus optional position or collateral simulation. |
+| `get_portfolio_summary` | One-call portfolio summary with balance, positions, and aggregate greeks. |
 | `get_deposit_history` | Deposit history. |
 | `get_withdrawal_history` | Withdrawal history. |
-| `get_erc20_transfer_history` | ERC20 transfers between subaccounts. |
-| `get_session_keys` | List session keys. |
+| `get_erc20_transfer_history` | ERC20 transfer history between subaccounts. |
+| `get_session_keys` | Session keys for the configured wallet. |
 
-### Trading (auth + EIP-712 signing)
-
-| Tool | Description |
-|------|-------------|
-| `place_order` | Place limit/market orders. Handles EIP-712 signing automatically. Supports IOC, FOK, GTC, post-only. |
-| `replace_order` | Atomic cancel + new order. |
-| `cancel_order` | Cancel by order ID. |
-| `cancel_by_instrument` | Cancel all orders for an instrument. |
-| `cancel_by_label` | Cancel all orders with a label. |
-| `cancel_all_orders` | Cancel all open orders. |
-| `set_cancel_on_disconnect` | Auto-cancel on WebSocket disconnect. |
-
-### RFQ (Request for Quote)
+### Raw Orders, RFQ, And Account Controls (16)
 
 | Tool | Description |
-|------|-------------|
-| `send_rfq` | Send multi-leg RFQ to market makers. |
-| `get_rfqs` | View active RFQs. |
-| `get_quotes` | View received quotes. |
-| `cancel_rfq` | Cancel an open RFQ. |
+|---|---|
+| `place_order` | Raw order placement with automatic EIP-712 signing. |
+| `replace_order` | Atomic cancel-and-replace for an existing order. |
+| `cancel_order` | Cancel a single order. |
+| `cancel_by_instrument` | Cancel all open orders for one instrument. |
+| `cancel_by_label` | Cancel open orders by label. |
+| `cancel_all_orders` | Cancel all open orders for a subaccount. |
+| `get_open_orders` | Current open orders. |
+| `get_order` | Current state of a single order. |
+| `get_order_history` | Historical orders. |
+| `get_trade_history_private` | Private trade fills with fees and realized PnL. |
+| `send_rfq` | Send a request for quote. |
+| `get_rfqs` | Retrieve RFQs. |
+| `get_quotes` | Retrieve quotes for an RFQ. |
+| `execute_quote` | Execute a specific RFQ quote with signed legs. |
+| `cancel_rfq` | Cancel an RFQ. |
+| `set_cancel_on_disconnect` | Enable or disable auto-cancel on disconnect. |
 
-### Market Maker Protection
+### Market Maker Protection (3)
 
 | Tool | Description |
-|------|-------------|
-| `get_mmp_config` | View MMP configuration. |
-| `set_mmp_config` | Configure MMP parameters. |
-| `reset_mmp` | Reset/unfreeze MMP. |
+|---|---|
+| `get_mmp_config` | Read current MMP configuration. |
+| `set_mmp_config` | Configure MMP thresholds and freeze behavior. |
+| `reset_mmp` | Manually reset or unfreeze MMP. |
 
-## LLM-Friendly Design
+### Lifecycle And Audit Helpers (8)
 
-This server is built specifically for AI consumption, not just API wrapping:
+These are composite tools built in this repo on top of the raw Derive endpoints.
 
-- **`get_options_chain`** returns a structured chain that LLMs can reason about directly — no need to call `get_tickers` per expiry and manually build the chain
-- **`get_portfolio_summary`** aggregates positions + collaterals + greeks in one call — saves tool calls and manual math
-- **`only_liquid` filter** on `get_tickers` reduces response size by ~89%, keeping context windows clean
-- **Precision rounding** — Derive API returns 40+ decimal places (`1.744970278569...`); this server rounds to 6 decimals for prices and uses scientific notation for very small values (greeks)
-- **30s request timeout** — prevents hung API calls from freezing the MCP session
-- **`compact` mode** on `get_instruments` returns only essential fields (name, strike, tick size, amount step)
-- **Margin rules in tool descriptions** — `place_order` description explains SM vs PM margin behavior so LLMs don't accidentally place margin-insufficient trades
+| Tool | Description |
+|---|---|
+| `place_and_verify` | Preferred order placement wrapper with normalized receipts, fill verification, and audit logging. |
+| `verify_order` | Re-check any order and emit audit corrections if the state changed. |
+| `create_rfq` | Open an RFQ and immediately return a normalized receipt. |
+| `await_rfq_quotes` | Poll an RFQ for quotes without executing them. |
+| `accept_rfq_quote` | Execute a chosen RFQ quote by `rfq_id` and `quote_id` without replaying legs manually. |
+| `check_multi_leg_margin` | Compare atomic and sequential margin behavior for multi-leg strategies. |
+| `order_audit_log` | Query the local append-only audit trail with summary stats. |
+| `reconcile` | Compare the local audit log with Derive state and optionally backfill corrections. |
 
-## Skills
+### Meta (1)
 
-The `skills/` directory contains Claude Code skills that extend this MCP server with higher-level capabilities:
+| Tool | Description |
+|---|---|
+| `auth_status` | Reports the configured auth mode, API URL, default subaccount, and available capabilities. |
 
-| Skill | Status | Description |
-|-------|--------|-------------|
-| `payoff-diagram` | **Ready** | Interactive HTML payoff diagrams — P&L curves at multiple DTEs, what-if price slider, plain English strategy summary, beginner-friendly greek explanations, IV sensitivity, scenario analysis. Live Derive API refresh. |
-| `strategy-scanner` | **Ready** | Scans live options chains for trade opportunities. Analyzes IV skew, term structure, unusual activity, yield screens, and cheap lottery tickets. Presents ranked ideas in plain language with thesis and risk. |
-| `trade-intent-parser` | **Ready** | NL → executable orders. "Sell the 90/100 call spread" → validates instruments, checks liquidity, simulates margin, shows preview with cost/greeks/breakevens, executes on confirmation. Auto-generates payoff diagram after fills. |
+## Important Behavior Notes
 
-Skills are designed to be installed into `~/.claude/skills/` and work alongside the MCP server.
+### Public vs signed trading tools
 
-## Repo Structure
+- Public tools require no auth.
+- Most authenticated read paths use the private API and can run with an API key or session-key auth.
+- Signed trading flows require `DERIVE_SESSION_PRIVATE_KEY`, `DERIVE_WALLET_ADDRESS`, and `DERIVE_SUBACCOUNT_ID`.
+- In practice, signed order execution includes `place_order`, `execute_quote`, and lifecycle tools that depend on them such as `place_and_verify` and `accept_rfq_quote`.
 
+### Options pricing
+
+- `get_options_chain` and `get_tickers` are the primary options analysis and pricing tools.
+- `get_ticker` exposes CLOB resting bid and ask, which can be misleading for options because options trade primarily through market-maker streaming quotes.
+- When placing orders, use `get_instruments(compact=true)` or `get_ticker` for `minimum_amount`, `amount_step`, and `tick_size`.
+
+### Margin and spread safety
+
+- Standard Margin (`SM`) does not net option spreads.
+- Portfolio Margin (`PM` / `PM2`) does.
+- For short options or credit spreads, inspect `margin_type` via `get_subaccount`, simulate with `get_margin`, and prefer `check_multi_leg_margin` or RFQ-based execution when appropriate.
+
+### Local audit log
+
+Lifecycle tools write an append-only JSONL audit trail to:
+
+```text
+~/.config/derive-mcp/audit/<subaccount_id>.jsonl
 ```
+
+This is local state owned by the MCP server process. It is useful for:
+
+- debugging order outcomes
+- reconstructing lifecycle receipts
+- tracking fill rate and fees
+- reconciling raw orders that bypassed lifecycle tools
+
+## LLM-Friendly Design Choices
+
+This server is not a thin API wrapper. It includes several choices specifically made for AI agents:
+
+- `get_options_chain` returns a structured chain instead of forcing callers to stitch together raw ticker data.
+- `get_portfolio_summary` collapses balance, positions, and aggregate greeks into one call.
+- `get_tickers(only_liquid=true)` keeps option responses smaller and more relevant.
+- Numeric strings are rounded for MCP display when Derive returns excessive precision, while the lifecycle audit log retains the underlying raw values that matter operationally.
+- Lifecycle tools normalize common failure cases such as zero liquidity, insufficient funds, transport errors, and partially filled orders.
+
+## Included Skills
+
+The repo also includes higher-level Claude Code skills that pair with this MCP server:
+
+| Skill | Description |
+|---|---|
+| `payoff-diagram` | Interactive HTML payoff diagrams with PnL curves, DTE views, scenario analysis, and plain-English strategy summaries. |
+| `strategy-scanner` | Live options chain scanning for trade ideas across skew, term structure, unusual activity, yield screens, and lottery-ticket setups. |
+| `trade-intent-parser` | Natural-language trade parsing that validates instruments, checks liquidity and margin, previews the trade, and can hand off to execution flows. |
+
+## Repo Layout
+
+```text
 derive-mcp-server/
 ├── src/
-│   ├── index.ts                    # MCP server entry point
+│   ├── index.ts
 │   └── protocols/derive/
-│       ├── client.ts               # API client, auth, request helpers
-│       ├── signing.ts              # EIP-712 order signing
-│       ├── types.ts                # Action/Protocol interfaces
-│       ├── response-schemas.ts     # Zod response schemas
-│       ├── index.ts                # Protocol registry (all 41 actions)
-│       ├── public/                 # Market data tools (no auth)
-│       │   ├── market-data/        # Instruments, tickers, options chain, trades
-│       │   └── charts/             # OHLCV candle data
-│       └── private/                # Authenticated tools
-│           ├── account/            # Account info, subaccounts
-│           ├── positions/          # Positions, collaterals, margin, portfolio
-│           ├── orders/             # Place, cancel, replace, history
-│           ├── rfq/                # Request for quote
-│           ├── transfers/          # Deposits, withdrawals
-│           ├── mmp/                # Market maker protection
-│           └── session/            # Session key management
-├── skills/                         # Claude Code skills (higher-level capabilities)
-│   ├── payoff-diagram/             # Interactive HTML payoff charts
-│   ├── strategy-scanner/           # Options chain opportunity scanner
-│   └── trade-intent-parser/        # NL → validated, executable orders
-├── dist/                           # Compiled output (gitignored)
+│       ├── client.ts
+│       ├── signing.ts
+│       ├── response-schemas.ts
+│       ├── public/
+│       ├── private/
+│       └── lifecycle/
+├── docs/
+│   └── ORDER_LIFECYCLE_MANAGER.md
+├── skills/
+│   ├── payoff-diagram/
+│   ├── strategy-scanner/
+│   └── trade-intent-parser/
+├── agents/
+│   └── sol-momentum-scalper.ts
+├── dist/
 ├── package.json
-├── tsconfig.json
-├── LICENSE                         # MIT
-└── .gitignore
+└── tsconfig.json
 ```
+
+## Extra Docs And Examples
+
+- [`docs/ORDER_LIFECYCLE_MANAGER.md`](./docs/ORDER_LIFECYCLE_MANAGER.md): design notes for the lifecycle layer, audit model, and normalized receipts
+- [`agents/sol-momentum-scalper.ts`](./agents/sol-momentum-scalper.ts): experimental example agent using the lifecycle and RFQ tools
+- [`skills/`](./skills): higher-level Claude Code skills that pair with this server
 
 ## Environment Variables
 
 | Variable | Required | Description |
-|----------|----------|-------------|
-| `DERIVE_SESSION_PRIVATE_KEY` | For trading | Session key private key (hex) |
-| `DERIVE_WALLET_ADDRESS` | For trading | Your wallet address |
-| `DERIVE_SUBACCOUNT_ID` | For trading | Default subaccount ID |
-| `DERIVE_API_KEY` | Alternative | API key (alternative to session key for read-only) |
-| `DERIVE_API_URL` | No | Override API URL (default: `https://api.lyra.finance`) |
-| `DERIVE_TESTNET` | No | Set to `"true"` for testnet (`https://api-demo.lyra.finance`) |
+|---|---|---|
+| `DERIVE_SESSION_PRIVATE_KEY` | Signed trading | Session key private key used for EIP-712 order signing |
+| `DERIVE_WALLET_ADDRESS` | Signed trading | Wallet address associated with the Derive session key |
+| `DERIVE_SUBACCOUNT_ID` | Signed trading / useful elsewhere | Default subaccount used by signed trading flows and as the fallback for tools that accept `subaccount_id` |
+| `DERIVE_API_KEY` | Optional | Alternative auth path for authenticated private requests that do not require local signing |
+| `DERIVE_API_URL` | Optional | Override the base API URL directly |
+| `DERIVE_TESTNET` | Optional | Set to `"true"` to use `https://api-demo.lyra.finance` |
+| `LYRA_SESSION_PRIVATE_KEY` | Optional | Legacy alias for `DERIVE_SESSION_PRIVATE_KEY` |
+| `LYRA_WALLET_ADDRESS` | Optional | Legacy alias for `DERIVE_WALLET_ADDRESS` |
+| `LYRA_SUBACCOUNT_ID` | Optional | Legacy alias for `DERIVE_SUBACCOUNT_ID` |
 
-> **Security:** Never put credentials in the repo. Use the launcher script pattern above to source env vars at runtime from a secured file outside the project.
+## Market Coverage
 
-## Supported Markets
+Market listings on Derive change over time. Instead of relying on a static README list, use:
 
-- **Options:** BTC, ETH, SOL, HYPE, ADA (strikes and expiries vary)
-- **Perps:** BTC-PERP, ETH-PERP, SOL-PERP, and more
-- **Collateral:** 21+ types including BTC, ETH, staked assets, yield-bearing tokens
+- `get_instruments`
+- `get_all_instruments`
+- `get_options_chain`
+
+to discover the current set of live options, perps, strikes, expiries, and collateral-supported markets.
 
 ## License
 
